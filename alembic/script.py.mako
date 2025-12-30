@@ -1,4 +1,3 @@
-## filepath: /home/narek/Desktop/cargo_transportation/alembic/script.py.mako
 <%
 import re
 from alembic import util
