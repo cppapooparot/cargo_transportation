@@ -46,42 +46,6 @@ def list_trips_endpoint(
     return list_trips(db, offset=offset, limit=limit, sort_by=sort_by, sort_dir=sort_dir)
 
 
-@router.get("/{trip_id}", response_model=TripRead)
-def get_trip_endpoint(trip_id: int, db: Session = Depends(get_db)) -> TripRead:
-    db_obj = get_trip(db, trip_id)
-    if db_obj is None:
-        raise HTTPException(status_code=404, detail="Trip not found")
-    return db_obj
-
-
-@router.patch("/{trip_id}", response_model=TripRead)
-def update_trip_endpoint(trip_id: int, payload: TripUpdate, db: Session = Depends(get_db)) -> TripRead:
-    db_obj = get_trip(db, trip_id)
-    if db_obj is None:
-        raise HTTPException(status_code=404, detail="Trip not found")
-
-    if payload.car_number is not None and get_car(db, payload.car_number) is None:
-        raise HTTPException(status_code=400, detail="car_number does not exist")
-    if payload.driver_tab_number is not None and get_driver(db, payload.driver_tab_number) is None:
-        raise HTTPException(status_code=400, detail="driver_tab_number does not exist")
-
-    dep = payload.departure_date or db_obj.departure_date
-    ret = payload.return_date or db_obj.return_date
-    if ret < dep:
-        raise HTTPException(status_code=400, detail="return_date must be >= departure_date")
-
-    return update_trip(db, db_obj, payload)
-
-
-@router.delete("/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_trip_endpoint(trip_id: int, db: Session = Depends(get_db)) -> None:
-    db_obj = get_trip(db, trip_id)
-    if db_obj is None:
-        raise HTTPException(status_code=404, detail="Trip not found")
-    delete_trip(db, db_obj)
-    return None
-
-
 @router.get("/search-cargo", response_model=list[TripRead])
 def search_trips_by_cargo_regex(
     pattern: str = Query(..., min_length=1, max_length=200),
@@ -148,3 +112,39 @@ def bulk_increase_distance_endpoint(
 ) -> dict:
     updated = bulk_increase_distance(db, origin=origin, min_distance_km=min_distance_km, add_km=add_km)
     return {"updated": updated}
+
+
+@router.get("/{trip_id}", response_model=TripRead)
+def get_trip_endpoint(trip_id: int, db: Session = Depends(get_db)) -> TripRead:
+    db_obj = get_trip(db, trip_id)
+    if db_obj is None:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    return db_obj
+
+
+@router.patch("/{trip_id}", response_model=TripRead)
+def update_trip_endpoint(trip_id: int, payload: TripUpdate, db: Session = Depends(get_db)) -> TripRead:
+    db_obj = get_trip(db, trip_id)
+    if db_obj is None:
+        raise HTTPException(status_code=404, detail="Trip not found")
+
+    if payload.car_number is not None and get_car(db, payload.car_number) is None:
+        raise HTTPException(status_code=400, detail="car_number does not exist")
+    if payload.driver_tab_number is not None and get_driver(db, payload.driver_tab_number) is None:
+        raise HTTPException(status_code=400, detail="driver_tab_number does not exist")
+
+    dep = payload.departure_date or db_obj.departure_date
+    ret = payload.return_date or db_obj.return_date
+    if ret < dep:
+        raise HTTPException(status_code=400, detail="return_date must be >= departure_date")
+
+    return update_trip(db, db_obj, payload)
+
+
+@router.delete("/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_trip_endpoint(trip_id: int, db: Session = Depends(get_db)) -> None:
+    db_obj = get_trip(db, trip_id)
+    if db_obj is None:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    delete_trip(db, db_obj)
+    return None

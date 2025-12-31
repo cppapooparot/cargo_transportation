@@ -21,6 +21,28 @@ def main() -> None:
 
     brands = ["MAN", "Volvo", "Scania", "DAF", "Iveco", "Mercedes"]
     categories = ["C", "CE"]
+    cargo_names = [
+        "fresh apples",
+        "frozen fish",
+        "medical supplies",
+        "car parts",
+        "construction sand",
+        "electronics",
+        "textile",
+        "glass bottles",
+        "chemicals",
+        "books",
+    ]
+    cargo_tags = [
+        "fragile",
+        "food",
+        "cold",
+        "hazmat",
+        "sealed",
+        "oversized",
+        "documents",
+        "priority",
+    ]
 
     cars: list[str] = []
     drivers: list[str] = []
@@ -56,6 +78,8 @@ def main() -> None:
         for _ in range(trips_n):
             dep = today - dt.timedelta(days=random.randint(0, 365))
             ret = dep + dt.timedelta(days=random.randint(1, 14))
+            name = random.choice(cargo_names)
+            tags = random.sample(cargo_tags, k=random.randint(1, 3))
             payload = {
                 "departure_date": dep.isoformat(),
                 "return_date": ret.isoformat(),
@@ -64,6 +88,11 @@ def main() -> None:
                 "distance_km": random.randint(20, 1200),
                 "car_number": random.choice(cars),
                 "driver_tab_number": random.choice(drivers),
+                "cargo": {
+                    "name": name,
+                    "description": f"delivery of {name}",
+                    "tags": tags,
+                },
             }
             client.post(f"{BASE_URL}/trips", json=payload)
 
