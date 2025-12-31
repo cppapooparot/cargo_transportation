@@ -14,6 +14,8 @@ class TripBase(BaseModel):
     car_number: str = Field(..., max_length=32)
     driver_tab_number: str = Field(..., max_length=32)
 
+    cargo: dict = Field(default_factory=dict)
+
 
 class TripCreate(TripBase):
     pass
@@ -27,6 +29,8 @@ class TripUpdate(BaseModel):
     distance_km: int | None = Field(None, ge=0)
     car_number: str | None = Field(None, max_length=32)
     driver_tab_number: str | None = Field(None, max_length=32)
+
+    cargo: dict | None = None
 
 
 class TripRead(TripBase):

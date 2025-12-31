@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.crud.car import get_car
 from app.crud.driver import get_driver
 from app.crud.trip import create_trip, delete_trip, get_trip, list_trips, update_trip
+from app.models.trip import Trip
 from app.schemas.trip import TripCreate, TripRead, TripUpdate
 
 router = APIRouter(prefix="/trips", tags=["trips"])
@@ -66,3 +68,20 @@ def delete_trip_endpoint(trip_id: int, db: Session = Depends(get_db)) -> None:
         raise HTTPException(status_code=404, detail="Trip not found")
     delete_trip(db, db_obj)
     return None
+
+
+@router.get("/search-cargo", response_model=list[TripRead])
+def search_trips_by_cargo_regex(
+    pattern: str = Query(..., min_length=1, max_length=200),
+    db: Session = Depends(get_db),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+) -> list[TripRead]:
+    stmt = (
+        select(Trip)
+        .where(text("cargo::text ~* :pattern"))
+        .params(pattern=pattern)
+        .offset(offset)
+        .limit(limit)
+    )
+    return list(db.scalars(stmt).all())

@@ -1,6 +1,7 @@
 import datetime as dt
 
 from sqlalchemy import Date, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -17,6 +18,8 @@ class Trip(Base):
     origin: Mapped[str] = mapped_column(String(120), nullable=False)
     destination: Mapped[str] = mapped_column(String(120), nullable=False)
     distance_km: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    cargo: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
     car_number: Mapped[str] = mapped_column(ForeignKey("cars.number"), nullable=False)
     driver_tab_number: Mapped[str] = mapped_column(
