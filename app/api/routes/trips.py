@@ -1,3 +1,5 @@
+import datetime as dt
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -5,8 +7,18 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.crud.car import get_car
 from app.crud.driver import get_driver
-from app.crud.trip import create_trip, delete_trip, get_trip, list_trips, update_trip
+from app.crud.trip import (
+    bulk_increase_distance,
+    create_trip,
+    delete_trip,
+    get_trip,
+    list_trips,
+    list_trips_with_details,
+    search_trips,
+    update_trip,
+)
 from app.models.trip import Trip
+from app.schemas.reports import TripWithDetailsRead
 from app.schemas.trip import TripCreate, TripRead, TripUpdate
 
 router = APIRouter(prefix="/trips", tags=["trips"])
@@ -85,3 +97,54 @@ def search_trips_by_cargo_regex(
         .limit(limit)
     )
     return list(db.scalars(stmt).all())
+
+
+@router.get("/search", response_model=list[TripRead])
+def search_trips_endpoint(
+    db: Session = Depends(get_db),
+    origin: str | None = Query(None, max_length=120),
+    destination: str | None = Query(None, max_length=120),
+    min_distance_km: int | None = Query(None, ge=0),
+    max_distance_km: int | None = Query(None, ge=0),
+    from_date: dt.date | None = Query(None),
+    to_date: dt.date | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    sort_by: str = Query("id", pattern="^(id|departure_date|return_date|distance_km|origin|destination)$"),
+    sort_dir: str = Query("asc", pattern="^(asc|desc)$"),
+) -> list[TripRead]:
+    return search_trips(
+        db,
+        origin=origin,
+        destination=destination,
+        min_distance_km=min_distance_km,
+        max_distance_km=max_distance_km,
+        from_date=from_date,
+        to_date=to_date,
+        offset=offset,
+        limit=limit,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+    )
+
+
+@router.get("/with-details", response_model=list[TripWithDetailsRead])
+def trips_with_details_endpoint(
+    db: Session = Depends(get_db),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    sort_by: str = Query("id", pattern="^(id|departure_date|return_date|distance_km|origin|destination)$"),
+    sort_dir: str = Query("asc", pattern="^(asc|desc)$"),
+) -> list[TripWithDetailsRead]:
+    return list_trips_with_details(db, offset=offset, limit=limit, sort_by=sort_by, sort_dir=sort_dir)
+
+
+@router.post("/bulk-increase-distance")
+def bulk_increase_distance_endpoint(
+    db: Session = Depends(get_db),
+    origin: str = Query(..., max_length=120),
+    min_distance_km: int = Query(0, ge=0),
+    add_km: int = Query(..., ge=1, le=100000),
+) -> dict:
+    updated = bulk_increase_distance(db, origin=origin, min_distance_km=min_distance_km, add_km=add_km)
+    return {"updated": updated}
