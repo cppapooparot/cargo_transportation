@@ -47,6 +47,23 @@ def main() -> None:
     cars: list[str] = []
     drivers: list[str] = []
 
+    def _fetch_existing_numbers(client: httpx.Client, path: str, key: str) -> list[str]:
+        r = client.get(f"{BASE_URL}/{path}")
+        if r.status_code != 200:
+            return []
+        data = r.json()
+        if not isinstance(data, list):
+            return []
+        out: list[str] = []
+        for item in data:
+            if isinstance(item, dict) and key in item and isinstance(item[key], str):
+                out.append(item[key])
+        return out
+
+    def _ensure_non_empty(name: str, items: list[str]) -> None:
+        if not items:
+            raise RuntimeError(f"seed failed: {name} is empty")
+
     with httpx.Client(timeout=30.0) as client:
         # cars
         for _ in range(cars_n):
@@ -61,6 +78,10 @@ def main() -> None:
             if r.status_code in (200, 201):
                 cars.append(number)
 
+        if not cars:
+            cars = _fetch_existing_numbers(client, "cars", "number")
+        _ensure_non_empty("cars", cars)
+
         # drivers
         for i in range(drivers_n):
             tab_number = f"T{i:05d}"
@@ -72,6 +93,10 @@ def main() -> None:
             r = client.post(f"{BASE_URL}/drivers", json=payload)
             if r.status_code in (200, 201):
                 drivers.append(tab_number)
+
+        if not drivers:
+            drivers = _fetch_existing_numbers(client, "drivers", "tab_number")
+        _ensure_non_empty("drivers", drivers)
 
         # trips
         today = dt.date.today()
