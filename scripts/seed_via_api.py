@@ -1,127 +1,112 @@
-import datetime as dt
 import os
 import random
 import string
+import datetime as dt
 
 import httpx
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000/api/v1")
 
+CARS_N = int(os.getenv("CARS_N", "50"))
+DRIVERS_N = int(os.getenv("DRIVERS_N", "50"))
+TRIPS_N = int(os.getenv("TRIPS_N", "200"))
+
 
 def rand_plate() -> str:
-    letters = "".join(random.choice(string.ascii_uppercase) for _ in range(2))
-    digits = "".join(random.choice(string.digits) for _ in range(4))
+    letters = "".join(random.choices(string.ascii_uppercase, k=2))
+    digits = "".join(random.choices(string.digits, k=4))
     return f"{letters}{digits}"
 
 
-def main() -> None:
-    cars_n = int(os.getenv("CARS_N", "200"))
-    drivers_n = int(os.getenv("DRIVERS_N", "200"))
-    trips_n = int(os.getenv("TRIPS_N", "2000"))
+def _fetch_existing_numbers(client: httpx.Client, endpoint: str, field: str) -> list[str]:
+    r = client.get(f"{BASE_URL}/{endpoint}", params={"offset": 0, "limit": 1000})
+    r.raise_for_status()
+    items = r.json()
+    out: list[str] = []
+    for it in items:
+        if isinstance(it, dict) and field in it:
+            out.append(str(it[field]))
+    return out
 
-    brands = ["MAN", "Volvo", "Scania", "DAF", "Iveco", "Mercedes"]
-    categories = ["C", "CE"]
+
+def main() -> None:
     cargo_names = [
         "fresh apples",
-        "frozen fish",
+        "fish",
         "medical supplies",
-        "car parts",
-        "construction sand",
         "electronics",
-        "textile",
-        "glass bottles",
-        "chemicals",
-        "books",
-    ]
-    cargo_tags = [
-        "fragile",
-        "food",
-        "cold",
+        "glass",
         "hazmat",
-        "sealed",
-        "oversized",
-        "documents",
-        "priority",
+        "wood",
+        "furniture",
     ]
-
-    cars: list[str] = []
-    drivers: list[str] = []
-
-    def _fetch_existing_numbers(client: httpx.Client, path: str, key: str) -> list[str]:
-        r = client.get(f"{BASE_URL}/{path}")
-        if r.status_code != 200:
-            return []
-        data = r.json()
-        if not isinstance(data, list):
-            return []
-        out: list[str] = []
-        for item in data:
-            if isinstance(item, dict) and key in item and isinstance(item[key], str):
-                out.append(item[key])
-        return out
-
-    def _ensure_non_empty(name: str, items: list[str]) -> None:
-        if not items:
-            raise RuntimeError(f"seed failed: {name} is empty")
+    cities = ["Yerevan", "Gyumri", "Vanadzor", "Hrazdan", "Armavir", "Artashat"]
 
     with httpx.Client(timeout=30.0) as client:
-        # cars
-        for _ in range(cars_n):
-            number = rand_plate()
+        # Cars
+        cars: list[str] = []
+        for _ in range(CARS_N):
             payload = {
-                "number": number,
-                "brand": random.choice(brands),
-                "capacity_kg": random.choice([5000, 8000, 12000, 20000]),
-                "fuel_l_per_100km": random.choice([18, 22, 25, 30]),
+                "number": rand_plate(),
+                "brand": random.choice(["MAN", "Volvo", "Scania", "DAF", "Iveco"]),
+                "capacity_kg": random.randint(1000, 25000),
+                "fuel_l_per_100km": random.randint(8, 40),
             }
             r = client.post(f"{BASE_URL}/cars", json=payload)
             if r.status_code in (200, 201):
-                cars.append(number)
+                cars.append(payload["number"])
 
         if not cars:
             cars = _fetch_existing_numbers(client, "cars", "number")
-        _ensure_non_empty("cars", cars)
+        if not cars:
+            raise RuntimeError("No cars available (create cars first)")
 
-        # drivers
-        for i in range(drivers_n):
-            tab_number = f"T{i:05d}"
+        # Drivers
+        drivers: list[str] = []
+        for i in range(DRIVERS_N):
+            tab = f"T{i:05d}"
             payload = {
-                "tab_number": tab_number,
+                "tab_number": tab,
                 "full_name": f"Driver {i}",
-                "category": random.choice(categories),
+                "category": random.choice(["B", "C", "CE"]),
             }
             r = client.post(f"{BASE_URL}/drivers", json=payload)
             if r.status_code in (200, 201):
-                drivers.append(tab_number)
+                drivers.append(tab)
 
         if not drivers:
             drivers = _fetch_existing_numbers(client, "drivers", "tab_number")
-        _ensure_non_empty("drivers", drivers)
+        if not drivers:
+            raise RuntimeError("No drivers available (create drivers first)")
 
-        # trips
+        # Trips
         today = dt.date.today()
-        for _ in range(trips_n):
+        for _ in range(TRIPS_N):
             dep = today - dt.timedelta(days=random.randint(0, 365))
-            ret = dep + dt.timedelta(days=random.randint(1, 14))
-            name = random.choice(cargo_names)
-            tags = random.sample(cargo_tags, k=random.randint(1, 3))
+            ret = dep + dt.timedelta(days=random.randint(0, 7))
+            origin = random.choice(cities)
+            destination = random.choice([c for c in cities if c != origin])
+
             payload = {
                 "departure_date": dep.isoformat(),
                 "return_date": ret.isoformat(),
-                "origin": random.choice(["Yerevan", "Gyumri", "Vanadzor", "Tbilisi", "Batumi"]),
-                "destination": random.choice(["Yerevan", "Gyumri", "Vanadzor", "Tbilisi", "Batumi"]),
+                "origin": origin,
+                "destination": destination,
                 "distance_km": random.randint(20, 1200),
                 "car_number": random.choice(cars),
                 "driver_tab_number": random.choice(drivers),
                 "cargo": {
-                    "name": name,
-                    "description": f"delivery of {name}",
-                    "tags": tags,
+                    "name": random.choice(cargo_names),
+                    "tags": random.sample(
+                        ["fragile", "food", "medical", "priority", "hazmat"],
+                        k=random.randint(0, 3),
+                    ),
                 },
             }
-            client.post(f"{BASE_URL}/trips", json=payload)
+            r = client.post(f"{BASE_URL}/trips", json=payload)
+            r.raise_for_status()
 
-    print("seed done", {"cars": len(cars), "drivers": len(drivers), "trips": trips_n})
+    print("seed done", {"cars": len(cars), "drivers": len(drivers), "trips": TRIPS_N})
 
 
 if __name__ == "__main__":
